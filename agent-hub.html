@@ -582,13 +582,22 @@ function hideTyping() {
 }
 
 // ── SEND TO WEBHOOK ──
+function getSessionId() {
+  let id = localStorage.getItem('agentHubSessionId');
+  if (!id) {
+    id = 'session-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('agentHubSessionId', id);
+  }
+  return id;
+}
+  
 async function sendToAgent(message, mode) {
   showTyping();
   try {
     const res = await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, mode })
+      body: JSON.stringify({ message, mode, sessionId: getSessionId() })
     });
     const text = await res.text();
     hideTyping();
