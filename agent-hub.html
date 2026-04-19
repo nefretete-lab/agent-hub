@@ -156,7 +156,7 @@
     letter-spacing: .05em;
   }
 
-  /* Mode toggle */
+  /* Response type toggle (text/voice) */
   .mode-toggle {
     display: flex;
     background: var(--bg);
@@ -186,11 +186,84 @@
     box-shadow: 0 0 12px rgba(124,106,247,.4);
   }
 
+  /* ── LEARNING MODE SELECTOR ── */
+  .learning-modes {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    flex-shrink: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .learning-modes::-webkit-scrollbar { display: none; }
+
+  .lmode-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-dim);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: .02em;
+  }
+
+  .lmode-btn:active { transform: scale(.96); }
+
+  .lmode-btn.active {
+    color: white;
+    border-color: transparent;
+  }
+
+  .lmode-btn[data-mode="powtorka"].active {
+    background: #4f7af7;
+    box-shadow: 0 0 12px rgba(79,122,247,.35);
+  }
+
+  .lmode-btn[data-mode="pytanie"].active {
+    background: #f7a84f;
+    box-shadow: 0 0 12px rgba(247,168,79,.35);
+  }
+
+  .lmode-btn[data-mode="newsy"].active {
+    background: #6af7a0;
+    color: #0a0a0f;
+    box-shadow: 0 0 12px rgba(106,247,160,.35);
+  }
+
+  .lmode-btn[data-mode="nauka"].active {
+    background: #f76af7;
+    box-shadow: 0 0 12px rgba(247,106,247,.35);
+  }
+
+  /* Mode info tooltip */
+  .mode-info {
+    padding: 6px 16px 0;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: .04em;
+    flex-shrink: 0;
+    min-height: 22px;
+    transition: opacity .2s;
+  }
+
   /* Messages */
   #messages {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 16px;
+    padding: 16px 16px;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -240,15 +313,20 @@
     border-bottom-left-radius: 4px;
   }
 
-  .msg-mode-tag {
+  .msg-tags {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 2px;
+    align-self: flex-end;
+  }
+
+  .msg-tag {
     font-size: 9px;
     font-family: 'DM Mono', monospace;
     color: var(--text-dim);
     padding: 2px 6px;
     border-radius: 4px;
     border: 1px solid var(--border);
-    margin-bottom: 2px;
-    align-self: flex-end;
   }
 
   /* Typing indicator */
@@ -367,7 +445,6 @@
   .voice-status.recording { color: var(--recording); }
   .voice-status.processing { color: var(--accent); }
 
-  /* Transcript */
   .transcript-box {
     width: 100%;
     background: var(--bg);
@@ -452,15 +529,32 @@
       </div>
     </div>
     <div class="mode-toggle">
-      <button class="mode-btn active" id="btn-text" onclick="setMode('text')">✏️ Czat</button>
-      <button class="mode-btn" id="btn-voice" onclick="setMode('voice')">🎙️ Głos</button>
+      <button class="mode-btn active" id="btn-text" onclick="setResponseType('text')">✏️ Czat</button>
+      <button class="mode-btn" id="btn-voice" onclick="setResponseType('voice')">🎙️ Głos</button>
     </div>
   </div>
+
+  <!-- LEARNING MODE SELECTOR -->
+  <div class="learning-modes">
+    <button class="lmode-btn active" data-mode="powtorka" onclick="setLearningMode('powtorka')">
+      🔁 Powtórka
+    </button>
+    <button class="lmode-btn" data-mode="pytanie" onclick="setLearningMode('pytanie')">
+      ❓ Pytanie
+    </button>
+    <button class="lmode-btn" data-mode="newsy" onclick="setLearningMode('newsy')">
+      📰 Newsy
+    </button>
+    <button class="lmode-btn" data-mode="nauka" onclick="setLearningMode('nauka')">
+      🎓 Nauka
+    </button>
+  </div>
+  <div class="mode-info" id="mode-info">Quiz z poprzednich sesji — agent odpytuje z historii</div>
 
   <div id="messages">
     <div class="welcome" id="welcome">
       <div class="welcome-icon">🤖</div>
-      <div class="welcome-text">Cześć! Jestem Twoim mentorem AI.<br>Napisz lub powiedz coś żeby zacząć.</div>
+      <div class="welcome-text">Cześć! Jestem Twoim mentorem AI.<br>Wybierz tryb i napisz coś żeby zacząć.</div>
     </div>
   </div>
 
@@ -484,6 +578,14 @@
 // ── CONFIG ──
 const PIN = '1304';
 const WEBHOOK_URL = 'https://leszek181-20181.mikrus.cloud/webhook/mentor-chat';
+
+// Opisy trybów nauki wyświetlane pod przyciskami
+const MODE_DESCRIPTIONS = {
+  powtorka: 'Quiz z poprzednich sesji — agent odpytuje z historii',
+  pytanie:  'Konkretna odpowiedź — Tavily sprawdza aktualny stan',
+  newsy:    'Co nowego w AI — Tavily szuka z ostatniego miesiąca',
+  nauka:    'Nowy temat dopasowany do Ciebie — Tavily Knowledge'
+};
 
 // ── PIN ──
 let pinInput = '';
@@ -520,22 +622,32 @@ function checkPin() {
   }
 }
 
-// Klawiatura fizyczna dla PIN
 document.addEventListener('keydown', e => {
   if (document.getElementById('pin-screen').style.display === 'none') return;
   if (e.key >= '0' && e.key <= '9') pinPress(e.key);
   if (e.key === 'Backspace') pinPress('del');
 });
 
-// ── MODE ──
-let currentMode = 'text';
+// ── RESPONSE TYPE (text / voice) ──
+let currentResponseType = 'text';
 
-function setMode(mode) {
-  currentMode = mode;
-  document.getElementById('btn-text').classList.toggle('active', mode === 'text');
-  document.getElementById('btn-voice').classList.toggle('active', mode === 'voice');
-  document.getElementById('text-input-row').style.display = mode === 'text' ? 'flex' : 'none';
-  document.getElementById('voice-input-area').style.display = mode === 'voice' ? 'flex' : 'none';
+function setResponseType(type) {
+  currentResponseType = type;
+  document.getElementById('btn-text').classList.toggle('active', type === 'text');
+  document.getElementById('btn-voice').classList.toggle('active', type === 'voice');
+  document.getElementById('text-input-row').style.display = type === 'text' ? 'flex' : 'none';
+  document.getElementById('voice-input-area').style.display = type === 'voice' ? 'flex' : 'none';
+}
+
+// ── LEARNING MODE (powtorka / pytanie / newsy / nauka) ──
+let currentLearningMode = 'powtorka';
+
+function setLearningMode(mode) {
+  currentLearningMode = mode;
+  document.querySelectorAll('.lmode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  document.getElementById('mode-info').textContent = MODE_DESCRIPTIONS[mode] || '';
 }
 
 // ── MESSAGES ──
@@ -544,15 +656,20 @@ function hideWelcome() {
   if (w) w.remove();
 }
 
-function addMessage(text, role, mode) {
+function addMessage(text, role, learningMode, responseType) {
   hideWelcome();
   const msgs = document.getElementById('messages');
   const div = document.createElement('div');
   div.className = `msg ${role}`;
 
+  const modeEmojis = { powtorka: '🔁', pytanie: '❓', newsy: '📰', nauka: '🎓' };
+
   let html = `<div class="msg-label">${role === 'user' ? 'Ty' : 'Mentor'}</div>`;
-  if (role === 'user' && mode === 'voice') {
-    html += `<div class="msg-mode-tag">🎙️ głos</div>`;
+  if (role === 'user') {
+    html += `<div class="msg-tags">
+      <span class="msg-tag">${modeEmojis[learningMode] || ''} ${learningMode}</span>
+      ${responseType === 'voice' ? '<span class="msg-tag">🎙️ głos</span>' : ''}
+    </div>`;
   }
   html += `<div class="msg-bubble">${text.replace(/\n/g,'<br>')}</div>`;
   div.innerHTML = html;
@@ -590,26 +707,30 @@ function getSessionId() {
   }
   return id;
 }
-  
-async function sendToAgent(message, mode) {
+
+async function sendToAgent(message, learningMode, responseType) {
   showTyping();
   try {
     const res = await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, mode, sessionId: getSessionId() })
+      body: JSON.stringify({
+        message,
+        mode: learningMode,        // powtorka / pytanie / newsy / nauka → Switch w n8n
+        responseType,              // text / voice → ElevenLabs w przyszłości
+        sessionId: getSessionId()
+      })
     });
     const text = await res.text();
     hideTyping();
-    addMessage(text, 'agent', mode);
+    addMessage(text, 'agent', learningMode, responseType);
 
-    // Jeśli tryb głosowy — odczytaj odpowiedź (tymczasowo przez Web Speech API)
-    if (mode === 'voice') {
+    if (responseType === 'voice') {
       speakText(text);
     }
   } catch(err) {
     hideTyping();
-    addMessage('Błąd połączenia z agentem. Sprawdź czy n8n działa.', 'agent', mode);
+    addMessage('Błąd połączenia z agentem. Sprawdź czy n8n działa.', 'agent', learningMode, responseType);
   }
 }
 
@@ -635,8 +756,8 @@ async function sendText() {
   textInput.value = '';
   textInput.style.height = 'auto';
   sendBtn.disabled = true;
-  addMessage(msg, 'user', 'text');
-  await sendToAgent(msg, 'text');
+  addMessage(msg, 'user', currentLearningMode, currentResponseType);
+  await sendToAgent(msg, currentLearningMode, currentResponseType);
   sendBtn.disabled = false;
   textInput.focus();
 }
@@ -691,20 +812,11 @@ function stopRecording() {
 }
 
 async function processAudio() {
-  // UWAGA: Tu docelowo trafi Groq Whisper STT
-  // Na razie używamy Web Speech API jako placeholder
-  // lub wysyłamy do n8n z informacją o trybie głosowym
-  
-  const blob = new Blob(audioChunks, { type: 'audio/webm' });
-  
-  // Tymczasowo: użyj Web Speech API do transkrypcji
-  // Docelowo: wyślij blob do Groq Whisper przez n8n
+  // Tu docelowo trafi Groq Whisper STT
   voiceStatus.textContent = '⚠️ Groq Whisper - do skonfigurowania';
   voiceStatus.className = 'voice-status';
-  
   transcriptBox.textContent = '[Tu pojawi się transkrypcja po podłączeniu Groq Whisper]';
   transcriptBox.classList.add('visible');
-  
   recordBtn.textContent = '🎙️';
   recordBtn.disabled = false;
   voiceStatus.textContent = 'Naciśnij żeby nagrać';
