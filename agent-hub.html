@@ -648,6 +648,17 @@ function setLearningMode(mode) {
     btn.classList.toggle('active', btn.dataset.mode === mode);
   });
   document.getElementById('mode-info').textContent = MODE_DESCRIPTIONS[mode] || '';
+
+   // Automatyczny trigger przy zmianie trybu
+  const triggers = {
+    powtorka: 'START_POWTORKA',
+    pytanie:  'START_PYTANIE',
+    newsy:    'START_NEWSY',
+    nauka:    'START_NAUKA'
+  };
+
+  addMessage(MODE_DESCRIPTIONS[mode], 'user', mode, currentResponseType);
+  sendToAgent(triggers[mode], mode, currentResponseType);
 }
 
 // ── MESSAGES ──
