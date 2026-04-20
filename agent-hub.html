@@ -247,18 +247,6 @@
     box-shadow: 0 0 12px rgba(247,106,247,.35);
   }
 
-  /* Mode info tooltip */
-  .mode-info {
-    padding: 6px 16px 0;
-    font-size: 11px;
-    color: var(--text-dim);
-    font-family: 'DM Mono', monospace;
-    letter-spacing: .04em;
-    flex-shrink: 0;
-    min-height: 22px;
-    transition: opacity .2s;
-  }
-
   /* Messages */
   #messages {
     flex: 1;
@@ -327,6 +315,34 @@
     padding: 2px 6px;
     border-radius: 4px;
     border: 1px solid var(--border);
+  }
+
+  /* ── SYSTEM MESSAGE (zmiana trybu) ── */
+  .msg-system {
+    display: flex;
+    justify-content: center;
+    animation: msgIn .25s ease;
+  }
+
+  .msg-system-inner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: transparent;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text-dim);
+    letter-spacing: .04em;
+  }
+
+  .msg-system-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    opacity: .5;
   }
 
   /* Typing indicator */
@@ -549,12 +565,11 @@
       🎓 Nauka
     </button>
   </div>
-  <div class="mode-info" id="mode-info">Quiz z poprzednich sesji — agent odpytuje z historii</div>
 
   <div id="messages">
     <div class="welcome" id="welcome">
       <div class="welcome-icon">🤖</div>
-      <div class="welcome-text">Cześć! Jestem Twoim mentorem AI.<br>Wybierz tryb i napisz coś żeby zacząć.</div>
+      <div class="welcome-text">Cześć! Jestem Twoim mentorem AI.<br>Wybierz tryb żeby zacząć.</div>
     </div>
   </div>
 
@@ -579,12 +594,27 @@
 const PIN = '1304';
 const WEBHOOK_URL = 'https://leszek181-20181.mikrus.cloud/webhook/mentor-chat';
 
-// Opisy trybów nauki wyświetlane pod przyciskami
+// Ludzkie opisy trybów — tylko dla użytkownika, wyświetlane jako komunikat systemowy
 const MODE_DESCRIPTIONS = {
-  powtorka: 'Quiz z poprzednich sesji — agent odpytuje z historii',
-  pytanie:  'Konkretna odpowiedź — Tavily sprawdza aktualny stan',
-  newsy:    'Co nowego w AI — Tavily szuka z ostatniego miesiąca',
-  nauka:    'Nowy temat dopasowany do Ciebie — Tavily Knowledge'
+  powtorka: 'Sprawdź co pamiętasz',
+  pytanie:  'Zapytaj o cokolwiek',
+  newsy:    'Co słychać w AI?',
+  nauka:    'Zacznij nowy temat'
+};
+
+// Ukryte triggery — wysyłane do agenta, użytkownik ich nie widzi
+const MODE_TRIGGERS = {
+  powtorka: 'START_POWTORKA',
+  pytanie:  'START_PYTANIE',
+  newsy:    'START_NEWSY',
+  nauka:    'START_NAUKA'
+};
+
+const MODE_EMOJIS = {
+  powtorka: '🔁',
+  pytanie:  '❓',
+  newsy:    '📰',
+  nauka:    '🎓'
 };
 
 // ── PIN ──
@@ -644,21 +674,17 @@ let currentLearningMode = 'powtorka';
 
 function setLearningMode(mode) {
   currentLearningMode = mode;
+
+  // Aktualizuj przyciski
   document.querySelectorAll('.lmode-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.mode === mode);
   });
-  document.getElementById('mode-info').textContent = MODE_DESCRIPTIONS[mode] || '';
 
-   // Automatyczny trigger przy zmianie trybu
-  const triggers = {
-    powtorka: 'START_POWTORKA',
-    pytanie:  'START_PYTANIE',
-    newsy:    'START_NEWSY',
-    nauka:    'START_NAUKA'
-  };
+  // Pokaż systemowy komunikat o zmianie trybu (nie bańka użytkownika)
+  addSystemMessage(`${MODE_EMOJIS[mode]} ${MODE_DESCRIPTIONS[mode]}`);
 
-  addMessage(MODE_DESCRIPTIONS[mode], 'user', mode, currentResponseType);
-  sendToAgent(triggers[mode], mode, currentResponseType);
+  // Wyślij ukryty trigger do agenta
+  sendToAgent(MODE_TRIGGERS[mode], mode, currentResponseType);
 }
 
 // ── MESSAGES ──
@@ -667,18 +693,31 @@ function hideWelcome() {
   if (w) w.remove();
 }
 
+// Systemowy komunikat o zmianie trybu — subtelny, wyśrodkowany
+function addSystemMessage(text) {
+  hideWelcome();
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg-system';
+  div.innerHTML = `<div class="msg-system-inner">
+    <div class="msg-system-dot"></div>
+    ${text}
+    <div class="msg-system-dot"></div>
+  </div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
 function addMessage(text, role, learningMode, responseType) {
   hideWelcome();
   const msgs = document.getElementById('messages');
   const div = document.createElement('div');
   div.className = `msg ${role}`;
 
-  const modeEmojis = { powtorka: '🔁', pytanie: '❓', newsy: '📰', nauka: '🎓' };
-
   let html = `<div class="msg-label">${role === 'user' ? 'Ty' : 'Mentor'}</div>`;
   if (role === 'user') {
     html += `<div class="msg-tags">
-      <span class="msg-tag">${modeEmojis[learningMode] || ''} ${learningMode}</span>
+      <span class="msg-tag">${MODE_EMOJIS[learningMode] || ''} ${learningMode}</span>
       ${responseType === 'voice' ? '<span class="msg-tag">🎙️ głos</span>' : ''}
     </div>`;
   }
@@ -727,8 +766,8 @@ async function sendToAgent(message, learningMode, responseType) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message,
-        mode: learningMode,        // powtorka / pytanie / newsy / nauka → Switch w n8n
-        responseType,              // text / voice → ElevenLabs w przyszłości
+        mode: learningMode,
+        responseType,
         sessionId: getSessionId()
       })
     });
@@ -824,7 +863,7 @@ function stopRecording() {
 
 async function processAudio() {
   // Tu docelowo trafi Groq Whisper STT
-  voiceStatus.textContent = '⚠️ Groq Whisper - do skonfigurowania';
+  voiceStatus.textContent = '⚠️ Groq Whisper — do skonfigurowania';
   voiceStatus.className = 'voice-status';
   transcriptBox.textContent = '[Tu pojawi się transkrypcja po podłączeniu Groq Whisper]';
   transcriptBox.classList.add('visible');
