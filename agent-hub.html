@@ -594,7 +594,6 @@
 const PIN = '1304';
 const WEBHOOK_URL = 'https://leszek181-20181.mikrus.cloud/webhook/mentor-chat';
 
-// Ludzkie opisy trybów — tylko dla użytkownika, wyświetlane jako komunikat systemowy
 const MODE_DESCRIPTIONS = {
   powtorka: 'Sprawdź co pamiętasz',
   pytanie:  'Zapytaj o cokolwiek',
@@ -602,7 +601,6 @@ const MODE_DESCRIPTIONS = {
   nauka:    'Zacznij nowy temat'
 };
 
-// Ukryte triggery — wysyłane do agenta, użytkownik ich nie widzi
 const MODE_TRIGGERS = {
   powtorka: 'START_POWTORKA',
   pytanie:  'START_PYTANIE',
@@ -669,21 +667,15 @@ function setResponseType(type) {
   document.getElementById('voice-input-area').style.display = type === 'voice' ? 'flex' : 'none';
 }
 
-// ── LEARNING MODE (powtorka / pytanie / newsy / nauka) ──
+// ── LEARNING MODE ──
 let currentLearningMode = 'powtorka';
 
 function setLearningMode(mode) {
   currentLearningMode = mode;
-
-  // Aktualizuj przyciski
   document.querySelectorAll('.lmode-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.mode === mode);
   });
-
-  // Pokaż systemowy komunikat o zmianie trybu (nie bańka użytkownika)
   addSystemMessage(`${MODE_EMOJIS[mode]} ${MODE_DESCRIPTIONS[mode]}`);
-
-  // Wyślij ukryty trigger do agenta
   sendToAgent(MODE_TRIGGERS[mode], mode, currentResponseType);
 }
 
@@ -693,7 +685,6 @@ function hideWelcome() {
   if (w) w.remove();
 }
 
-// Systemowy komunikat o zmianie trybu — subtelny, wyśrodkowany
 function addSystemMessage(text) {
   hideWelcome();
   const msgs = document.getElementById('messages');
@@ -748,7 +739,7 @@ function hideTyping() {
   if (t) t.remove();
 }
 
-// ── SEND TO WEBHOOK ──
+// ── SESSION ID ──
 function getSessionId() {
   let id = localStorage.getItem('agentHubSessionId');
   if (!id) {
@@ -758,6 +749,7 @@ function getSessionId() {
   return id;
 }
 
+// ── SEND TO WEBHOOK (JSON — tryb tekstowy) ──
 async function sendToAgent(message, learningMode, responseType) {
   showTyping();
   try {
@@ -861,18 +853,45 @@ function stopRecording() {
   }
 }
 
+// ── PROCESS AUDIO — wysyła plik do Webhooka jako form-data ──
 async function processAudio() {
-  // Tu docelowo trafi Groq Whisper STT
-  voiceStatus.textContent = '⚠️ Groq Whisper — do skonfigurowania';
-  voiceStatus.className = 'voice-status';
-  transcriptBox.textContent = '[Tu pojawi się transkrypcja po podłączeniu Groq Whisper]';
+  const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+
+  const formData = new FormData();
+  formData.append('audio', audioBlob, 'recording.webm');
+  formData.append('mode', currentLearningMode);
+  formData.append('responseType', currentResponseType);
+  formData.append('sessionId', getSessionId());
+
+  transcriptBox.textContent = 'Przetwarzam nagranie...';
   transcriptBox.classList.add('visible');
+  showTyping();
+
+  try {
+    const res = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      body: formData
+      // Bez Content-Type — przeglądarka ustawia multipart/form-data automatycznie
+    });
+    const text = await res.text();
+    hideTyping();
+    addMessage(text, 'agent', currentLearningMode, currentResponseType);
+
+    if (currentResponseType === 'voice') {
+      speakText(text);
+    }
+  } catch(err) {
+    hideTyping();
+    addMessage('Błąd połączenia z agentem.', 'agent', currentLearningMode, currentResponseType);
+  }
+
   recordBtn.textContent = '🎙️';
   recordBtn.disabled = false;
   voiceStatus.textContent = 'Naciśnij żeby nagrać';
+  transcriptBox.classList.remove('visible');
 }
 
-// ── TTS (tymczasowo Web Speech API) ──
+// ── TTS (Web Speech API jako fallback) ──
 function speakText(text) {
   if ('speechSynthesis' in window) {
     const utt = new SpeechSynthesisUtterance(text);
